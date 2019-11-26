@@ -56,6 +56,58 @@ describe('@xstate/graph', () => {
     }
   });
 
+  const pedestrianStatesNested = {
+    initial: 'walk',
+    states: {
+      walk: {
+        on: {
+          PED_COUNTDOWN: {
+            target: 'wait',
+            actions: ['startCountdown']
+          }
+        }
+      },
+      wait: {
+        on: {
+          PED_COUNTDOWN: 'stop',
+          POWER_OUTAGE: 'flashing'
+        }
+      },
+      stop: {
+        type: 'final'
+      },
+      flashing: {}
+    }
+  };
+
+  const lightMachineNested = Machine({
+    key: 'light',
+    initial: 'green',
+    states: {
+      green: {
+        on: {
+          TIMER: 'yellow',
+          POWER_OUTAGE: 'red.flashing',
+          PUSH_BUTTON: [
+            {
+              actions: ['doNothing'] // pushing the walk button never does anything
+            }
+          ]
+        }
+      },
+      yellow: {
+        on: {
+          TIMER: 'red',
+          POWER_OUTAGE: '#light.red.flashing'
+        }
+      },
+      red: {
+        ...pedestrianStatesNested,
+        onDone: 'green'
+      }
+    }
+  });
+
   type CondMachineCtx = { id: string };
   type CondMachineEvents = { type: 'EVENT'; id: string } | { type: 'STATE' };
 
@@ -119,6 +171,20 @@ describe('@xstate/graph', () => {
 
   describe('getNodes()', () => {
     it('should return an array of all nodes', () => {
+      const nodes = getStateNodes(lightMachine);
+      expect(nodes.every(node => node instanceof StateNode)).toBe(true);
+      expect(nodes.map(node => node.id).sort()).toEqual([
+        'light.green',
+        'light.red',
+        'light.red.flashing',
+        'light.red.stop',
+        'light.red.wait',
+        'light.red.walk',
+        'light.yellow'
+      ]);
+    });
+
+    it('should return an array of all nodes in nested state', () => {
       const nodes = getStateNodes(lightMachine);
       expect(nodes.every(node => node instanceof StateNode)).toBe(true);
       expect(nodes.map(node => node.id).sort()).toEqual([
